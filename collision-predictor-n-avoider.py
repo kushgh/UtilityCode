@@ -3,6 +3,7 @@ from math import sin, cos, pi, atan2, hypot, sqrt, pow
 import random
 import time
 import wx
+from linesegmentintersect import doIntersect
 
 SIZE = 600      # size of screen
 COUNT = 5     # count of random static objects
@@ -11,6 +12,7 @@ DELTA = 0.01
 COLORS = [
     wx.RED,
 ]
+
 
 class Bot(object):
     def __init__(self, position, target):
@@ -31,9 +33,10 @@ class Bot(object):
             if bot == self:
                 continue
             x, y = bot.position
-            tx, ty = bot.target
-            angle2 = atan2(ty - y, tx - x)
-            self.checkForCollision(bot, angle1, angle2)
+            fx, fy = bot.target
+            angle2 = atan2(fy - y, fx - x)
+            if doIntersect((px, py), (tx, ty), (x, y), (fx, fy)):
+                self.checkForCollision(bot, angle1, angle2)
             # d = hypot(px - x, py - y) ** 2
             # # deciding factor in robots touching each other
             # p = bot.padding ** 2
