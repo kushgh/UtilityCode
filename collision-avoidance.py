@@ -5,7 +5,7 @@ import time
 import wx
 
 SIZE = 600      # size of screen
-COUNT = 10      # count of random static objects
+COUNT = 7      # count of random static objects
 SPEED = 100      # speed of bot
 
 COLORS = [
@@ -18,16 +18,18 @@ class Bot(object):
         self.target = target
         self.speed = random.random() + 0.5
         self.padding = random.random() * 8 + 16
-        self.history = deque(maxlen=COUNT)
+        self.history = deque(maxlen=64)
     def get_position(self, offset):
         px, py = self.position
         tx, ty = self.target
         angle = atan2(ty - py, tx - px)
+        # angle = 2*pi
         return (px + cos(angle) * offset, py + sin(angle) * offset)
     def update(self, bots):
         px, py = self.position
         tx, ty = self.target
         angle = atan2(ty - py, tx - px)
+        # angle = 2*pi
         dx = cos(angle)
         dy = sin(angle)
         for bot in bots:
@@ -37,13 +39,12 @@ class Bot(object):
             d = hypot(px - x, py - y) ** 2
             p = bot.padding ** 2
             angle = atan2(py - y, px - x)
-            if d != 0:
-                dx += cos(angle) / d * p
-                dy += sin(angle) / d * p
-            else:
-                dx += 1
-                dy += 1
+            # angle = 2*pi
+            dx += cos(angle) / d * p
+            dy += sin(angle) / d * p
+            
         angle = atan2(dy, dx)
+        # angle = 2*pi
         magnitude = hypot(dx, dy)
         return angle, magnitude
     def set_position(self, position):
@@ -70,32 +71,35 @@ class Model(object):
             bot = Bot(position, target)
             result.append(bot)
         return result
+    
     def select_point(self):
         cx = self.width / 2.0
         cy = self.height / 2.0
         angles = list(range(0, 314))
         radius = min(self.width, self.height) * 0.4
         # angle cannot be more than 2 pi = 6.28319f
-        # angle = random.random() * 2 * pi
+        angle = random.random() * 2 * pi
         # angle = random.choice(angles)/100
-        angle = 0
         x = cx + cos(angle) * radius
         y = cy + sin(angle) * radius
         return (x, y)
+    
     def update(self, dt):
         data = [bot.update(self.bots) for bot in self.bots]
         for bot, (angle, magnitude) in zip(self.bots, data):
             speed = min(1, 0.2 + magnitude * 0.8)
+            # takes a turn if another something exists
             dx = cos(angle) * dt * SPEED * bot.speed * speed
             dy = sin(angle) * dt * SPEED * bot.speed * speed
+            # dx = cos(angle) * dt * SPEED * bot.speed * speed
+            # dy = sin(angle) * dt * SPEED * bot.speed * speed
             px, py = bot.position
             tx, ty = bot.target
             bot.set_position((px + dx, py + dy))
+            
+            # if bot reached destination, select new target
             if hypot(px - tx, py - ty) < 10:
                 bot.target = self.select_point()
-        for bot in self.bots[-1:]:
-            bot.target = self.bots[0].get_position(10)
-
 class Panel(wx.Panel):
     def __init__(self, parent):
         super(Panel, self).__init__(parent)
