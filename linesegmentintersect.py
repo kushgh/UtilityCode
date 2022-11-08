@@ -1,9 +1,11 @@
-# A Python3 program to find if 2 given line segments intersect or not
+from math import sqrt
+# utility function to allow movement in NSEW only
+def roundTo90(angle):
+    return 1.5708*(angle//1.5708)
+# utility function to calculate distannce
+def absDistance(a, b):
+    return sqrt((a[0] - b[0])**2 + (a[1]-b[1])**2) 
 
-class Point:
-	def __init__(self, x, y):
-		self[0] = x
-		self[1] = y
 
 # Given three collinear points p, q, r, the function checks if
 # point q lies on line segment 'pr'
@@ -64,64 +66,3 @@ def doIntersect(p1,q1,p2,q2):
 
 	# If none of the cases
 	return False
-
-# Driver program to test above functions:
-if __name__=="__main__":
-    p1 = Point(1, 1)
-    q1 = Point(10, 1)
-    p2 = Point(1, 2)
-    q2 = Point(10, 2)
-
-    if doIntersect(p1, q1, p2, q2):
-        print("Yes")
-    else:
-        print("No")
-
-    p1 = Point(10, 0)
-    q1 = Point(0, 10)
-    p2 = Point(0, 0)
-    q2 = Point(10,10)
-
-    if doIntersect(p1, q1, p2, q2):
-        print("Yes")
-    else:
-        print("No")
-
-    p1 = Point(-5,-5)
-    q1 = Point(0, 0)
-    p2 = Point(1, 1)
-    q2 = Point(10, 10)
-
-    if doIntersect(p1, q1, p2, q2):
-        print("Yes")
-    else:
-        print("No")
-        
-    # This code is contributed by Ansh Riyal
-
-
-def old_orientation(p, q, r):
-	# to find the orientation of an ordered triplet (p,q,r)
-	# function returns the following values:
-	# 0 : Collinear points
-	# 1 : Clockwise points
-	# 2 : Counterclockwise
-	
-	# See https://www.geeksforgeeks.org/orientation-3-ordered-points/amp/
-	# for details of below formula.
-	
-	val = (float(q[1] - p[1]) * (r[0] - q[0])) - (float(q[0] - p[0]) * (r[1] - q[1]))
-	if (val > 0):
-		
-		# Clockwise orientation
-		return 1
-	elif (val < 0):
-		
-		# Counterclockwise orientation
-		return 2
-	else:
-		
-		# Collinear orientation
-		return 0
-
-

@@ -3,26 +3,34 @@ from math import sin, cos, pi, atan2, hypot, sqrt, pow
 import random
 import time
 import wx
-from linesegmentintersect import doIntersect
+from linesegmentintersect import doIntersect, roundTo90, absDistance
+from colorama import Fore
+
 
 SIZE = 600      # size of screen
-COUNT = 5     # count of random static objects
+COUNT = 7     # count of all bots
 SPEED = 100      # speed of bot
-DELTA = 0.01
+DELTA = 0.0001
+BOT_SIZE = 6
 COLORS = [
     wx.RED,
+    wx.BLUE,
+    # wx.YELLOW
 ]
-
+bot_to_color = {1:"RED", 2: "BLUE", 3:"YELLOW"}
 
 class Bot(object):
-    def __init__(self, position, target):
+    def __init__(self, position, target, id):
+        self.id = id
         self.position = position
         self.target = target
         self.speed = 1
+        self.move = True
         # padding determines how far it needs to divert / how much to go around another bot
-        self.padding = 10
+        self.padding = 40
         # self.padding = random.random() * 8 + 16
         self.history = deque(maxlen=64)
+        self.waitTime = 0
     def update(self, bots):
         px, py = self.position
         tx, ty = self.target
@@ -35,8 +43,7 @@ class Bot(object):
             x, y = bot.position
             fx, fy = bot.target
             angle2 = atan2(fy - y, fx - x)
-            if doIntersect((px, py), (tx, ty), (x, y), (fx, fy)):
-                self.checkForCollision(bot, angle1, angle2)
+            
             # d = hypot(px - x, py - y) ** 2
             # # deciding factor in robots touching each other
             # p = bot.padding ** 2
@@ -44,11 +51,64 @@ class Bot(object):
             # angle = atan2(py - y, px - x)
             # dx += cos(angle) / d * p
             # dy += sin(angle) / d * p
+            
+            # only check for collision if line segments(bot to target) intersect
+            if doIntersect((px, py), (tx, ty), (x, y), (fx, fy)):
+                # self.collides(bot, roundTo90(angle1), roundTo90(angle2))
+                if(self.collides(bot, angle1, angle2)):
+                    cpx, cpy = self.collisionPoint((px, py), (tx, ty), (x, y), (fx, fy))    # collision point x and y
+                    d1 = absDistance((px, py), (tx, ty))
+                    d2 = absDistance((x , y), (fx, fy))
+                    
+                    if (absDistance((px, py), (cpx, cpy)) < 50 or absDistance((x , y), (cpx, cpy)) < 50) and d1 > d2:
+                        if self.id == 1:
+                            print(Fore.RED + f"Avoiding collision by stopping bot {self.id}")
+                        elif self.id == 2:
+                            print(Fore.BLUE + f"Avoiding collision by stopping bot {self.id}")
+                        else:
+                            print(Fore.YELLOW + f"Avoiding collision by stopping bot {self.id}")
+                        
+                        self.speedStop()
+                        self.waitTime += 1
+                        
+                        if self.waitTime > 64:
+                            self.speedReset()
+                            self.waitTime = 0
+                            print(f"Reset speed for bot {self.id}")
+            else:
+                self.speedReset()     
+                        
         angle = atan2(dy, dx)
-        # angle = 2*pi
+        # restricting its movement by rounding angle to 90 or 1.5708
+        # angle = roundTo90(angle)
         magnitude = hypot(dx, dy)
         return angle, magnitude
     
+    def speedFast(self):
+        self.speed = 5
+    
+    def speedStop(self):
+        self.speed = 0
+        
+    def speedReset(self):
+        self.speed = 1
+        
+    def speedSlow(self):
+        self.speed -= 0.2
+        
+    def collisionPoint(self, p,t, q, f):
+        (px, py) = p
+        (tx, ty) = t 
+        (x, y)   = q
+        (fx, fy) = f
+        m1 = (ty-py)/(tx-px)  
+        # slope of intermediate to final
+        m2 = (fy-y)/(fx-x)
+
+        intersect_x = ( (m1*px - m2*fx) + (fy - py) )/(m1-m2)
+        intersect_y = ( (m1*m2*(px - fx)) + (m1*fy - m2*py) )/(m1-m2)
+        return intersect_x, intersect_y
+        
     def set_position(self, position):
         self.position = position
         if not self.history:
@@ -65,29 +125,50 @@ class Bot(object):
         angle = atan2(ty - py, tx - px)
         return (px + cos(angle) * offset, py + sin(angle) * offset)
     
-    def checkForCollision(self, bot, angle1, angle2):
-        x1, y1 = self.position
-        x2, y2 = bot.position
+    # collision detector
+    def collides(self, bot, angle1, angle2):
+        px, py = self.position
+        x, y = bot.position
         xa = (self.speed)*cos(angle1)
         ya = (self.speed)*sin(angle1)
         xb = (self.speed)*cos(angle2)
         yb = (self.speed)*sin(angle2)
-        mintime = -(x1*xa - xa*x2 - (x1 - x2)*xb + y1*ya - ya*y2 - (y1 - y2)*yb) / (xa**2 - 2*xa*xb + xb**2 + ya**2 - 2*ya*yb + yb**2)
-        mindist = sqrt( pow(mintime*xa - mintime*xb + x1 - x2, 2) + pow(mintime*ya - mintime*yb + y1 - y2, 2) )
+        
+        def calculateTime(px, py, x, y):
+            tm = ((xa - xb)*(x - px) + (ya - yb)*(y - py)) / ((xa - xb)**2 + (ya - yb)**2)
+            return tm
+        def calculateDist(tm):
+            ds = sqrt( pow(tm*xa - tm*xb + px - x, 2) + pow(tm*ya - tm*yb + py - y, 2) )
+            return ds
+        
+        mintime = 0
+        mintime_left = 0
+        mintime_right = 0
+        
+        if xa-xb>DELTA or ya-yb>DELTA:
+            mintime = calculateTime(px, py, x, y) 
+            # 65% left of mid of bot
+            mintime_left = calculateTime(px-BOT_SIZE*0.65, py-BOT_SIZE*0.65, x-BOT_SIZE*0.65, y-BOT_SIZE*0.65) 
+            # 65% right of mid of bot
+            mintime_right = calculateTime(px+BOT_SIZE*0.65, py+BOT_SIZE*0.65, x+BOT_SIZE*0.65, y+BOT_SIZE*0.65)
+        mindist_right = calculateDist(mintime_right)
+        mindist_left = calculateDist(mintime_left)
+        mindist = calculateDist(mintime)
         
         if mindist <= 0:
-            # print("It will not collide")
-            return True; 
+            return False; 
         else:
             totalTime = 0
-            timeleft = (mintime - totalTime)
-            if mindist <= 12 and mintime>0:
-                print(f"Will collide within {timeleft:.3f}s")
-                return False
-            else:
-                # print(f"Will not collide, but reach minimum distance in {timeleft:.3f}s")
+            timeleft = (mintime - totalTime)/10
+            if (mindist <= 30 or mindist_left <= 30 or mindist_right <= 30) and mintime>0:
+                # print(Fore.WHITE + f"{bot_to_color[self.id]}({self.id}) Might collide with {bot_to_color[bot.id]}({bot.id}) within {timeleft:.2f}ms")
+                print(Fore.WHITE + f"({self.id}) Might collide with ({bot.id}) within {timeleft:.2f}ms")
                 return True
-         
+            else:
+                return False
+            
+        
+     
 class Model(object):
     def __init__(self, width, height, count):
         self.width = width
@@ -95,18 +176,29 @@ class Model(object):
         self.bots = self.create_bots(count)
     def create_bots(self, count):
         result = []
-        for _ in range(count):
+        for i in range(count):
             position = self.select_point()
-            target = self.select_point()
-            bot = Bot(position, target)
+            target = self.select_target()
+            bot = Bot(position, target, i + 1)
             result.append(bot)
         return result
     
     def select_point(self):
-        # return random.choice([(-300, 0), (300, 0), (0, 300), (0, -300)])
         cx = self.width / 2.0
         cy = self.height / 2.0
-        angles = [157, 314, 471, 628]
+        # angles = [157, 314, 471, 628]
+        radius = min(self.width, self.height) * 0.4
+        # angle cannot be more than 2 pi = 6.28319f
+        angle = random.random() * 2 * pi
+        # angle = random.choice(angles)/100
+        x = cx + cos(angle) * radius
+        y = cy + sin(angle) * radius
+        return (x, y)
+    
+    def select_target(self):
+        cx = self.width / 2.0
+        cy = self.height / 2.0
+        # angles = [157, 314, 471, 628]
         radius = min(self.width, self.height) * 0.4
         # angle cannot be more than 2 pi = 6.28319f
         angle = random.random() * 2 * pi
@@ -119,16 +211,15 @@ class Model(object):
         data = [bot.update(self.bots) for bot in self.bots]
         for bot, (angle, magnitude) in zip(self.bots, data):
             speed = min(1, 0.2 + magnitude * 0.8)
-            # slows the bot when a turn is being taken
-            dx = cos(angle) * dt * SPEED * bot.speed * speed
-            dy = sin(angle) * dt * SPEED * bot.speed * speed
+            # changes the direction and slows the bot when a turn is being taken
+            dx = cos(angle) * dt * SPEED * bot.speed 
+            dy = sin(angle) * dt * SPEED * bot.speed 
             px, py = bot.position
             tx, ty = bot.target
             bot.set_position((px + dx, py + dy))
-            
             # if bot reached destination, select new target
             if hypot(px - tx, py - ty) < 10:
-                bot.target = self.select_point()
+                bot.target = self.select_target()
         
 class Panel(wx.Panel):
     def __init__(self, parent):
