@@ -8,14 +8,14 @@ from colorama import Fore
 
 
 SIZE = 600      # size of screen
-COUNT = 7     # count of all bots
+COUNT = 3     # count of all bots
 SPEED = 100      # speed of bot
 DELTA = 0.0001
 BOT_SIZE = 6
 COLORS = [
     wx.RED,
     wx.BLUE,
-    # wx.YELLOW
+    wx.YELLOW
 ]
 bot_to_color = {1:"RED", 2: "BLUE", 3:"YELLOW"}
 
@@ -35,8 +35,7 @@ class Bot(object):
         px, py = self.position
         tx, ty = self.target
         angle1 = atan2(ty - py, tx - px)
-        dx = cos(angle1)
-        dy = sin(angle1)
+        
         for bot in bots:
             if bot == self:
                 continue
@@ -71,18 +70,15 @@ class Bot(object):
                         self.speedStop()
                         self.waitTime += 1
                         
-                        if self.waitTime > 64:
+                        if self.waitTime > bot.waitTime + 200:
                             self.speedReset()
-                            self.waitTime = 0
                             print(f"Reset speed for bot {self.id}")
             else:
                 self.speedReset()     
                         
-        angle = atan2(dy, dx)
         # restricting its movement by rounding angle to 90 or 1.5708
         # angle = roundTo90(angle)
-        magnitude = hypot(dx, dy)
-        return angle, magnitude
+        return angle1
     
     def speedFast(self):
         self.speed = 5
@@ -174,6 +170,7 @@ class Model(object):
         self.width = width
         self.height = height
         self.bots = self.create_bots(count)
+    
     def create_bots(self, count):
         result = []
         for i in range(count):
@@ -209,8 +206,7 @@ class Model(object):
     
     def update(self, dt):
         data = [bot.update(self.bots) for bot in self.bots]
-        for bot, (angle, magnitude) in zip(self.bots, data):
-            speed = min(1, 0.2 + magnitude * 0.8)
+        for bot, (angle) in zip(self.bots, data):
             # changes the direction and slows the bot when a turn is being taken
             dx = cos(angle) * dt * SPEED * bot.speed 
             dy = sin(angle) * dt * SPEED * bot.speed 
@@ -218,8 +214,9 @@ class Model(object):
             tx, ty = bot.target
             bot.set_position((px + dx, py + dy))
             # if bot reached destination, select new target
-            if hypot(px - tx, py - ty) < 10:
+            if hypot(px - tx, py - ty) < 7:
                 bot.target = self.select_target()
+                bot.waitTime = 0
         
 class Panel(wx.Panel):
     def __init__(self, parent):
