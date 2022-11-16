@@ -1,21 +1,70 @@
 #include <iostream>
 #include <math.h>
+#include <vector>
+#include <stdlib.h>
+#include <chrono>
+#include <thread>
+
 // Size of the bots
 #define BOT_SIZE 2
+#define NUM 4
 
-int main(){
+struct Bot{
+    int id;
+    double x, y, th, tx, ty, speed, vel_x, vel_y, next_x, next_y;
+    void setValues(){
+        x = 1+ (rand()%1000)/10.0;
+        y = 1+ (rand()%1000)/10.0;
+        th = (rand()%6)/1.0;;
+        speed = rand()%10/10.0;
+        tx = 1+ (rand()%1000)/10.0;
+        ty = 1+ (rand()%1000)/10.0;
+         
+        setSpeedComponents();  
+        setNextTarget();     
+    }
+    void setSpeedComponents(){
+        vel_x = speed*cos(th);
+        vel_y = speed*sin(th);
+    }
+    void setNextTarget(){
+        next_x = 1+ (rand()%1000)/10.0;
+        next_y = 1+ (rand()%1000)/10.0;
+    }
+    void resetTarget(){
+        tx = next_x;
+        ty = next_y;
+        setNextTarget();
+    }
+    void updateCurrentPosition(){
+        std::this_thread::sleep_for(std::chrono::milliseconds(300));
+        x += 1.0;
+        y += 1.0;
+    }
+    void update(std::vector<Bot> bots){
+        for(auto bot:bots){
+            if (&bot == this){
+                continue;
+            }
+            if doIntersect(){};
+        }
+    }
+};
 
+bool collision(Bot b1, Bot b2){
+    
     // bot 1
-    auto x1=0.0, y1 = 20.0;                             // current position
-    auto tx1=0.0, ty1 = 0.0;                            // interim target
-    auto angle1 = atan2(ty1 - y1, tx1 - x1) * 180/M_PI; // angle of bot against x axis
-    auto speed1 = 1.0;                                  // speed of bot
+    auto x1=b1.x, y1 = b1.y;                             // current position
+    auto tx1=b1.tx, ty1 = b1.ty;                            // interim target
+    auto angle1 = b1.th; // angle of bot against x axis
+    auto speed1 = b1.speed;                                  // speed of bot
 
     // bot 2
-    auto x2=10.0, y2 = 10.0;                            // current position
-    auto tx2=-10.0, ty2 = 10.0;                         // interim target
-    auto angle2 = atan2(ty2 - y2, tx2 - x2) * 180/M_PI; // angle of bot against x axis
-    auto speed2 = 1.0;                                  // speed of bot
+    auto x2=b2.x, y2 = b2.y;                             // current position
+    auto tx2=b2.tx, ty2 = b2.ty;                            // interim target
+    auto angle2 = b2.th; // angle of bot against x axis
+    auto speed2 = b2.speed;                                  // speed of bot
+
 
     // speed of a 
     auto xa = speed1*cos(angle1); // in x direction
@@ -36,9 +85,31 @@ int main(){
     if (ds <= BOT_SIZE*2 + 0.05*BOT_SIZE){
         collision = true;
         // now do something
+        //
     }   
 
     std::cout<<collision;
+    return collision;
+}
+
+int main(){
+
+    std::vector<Bot> bots;
+
+    for(auto bot:bots){
+        bot.update();
+    }
+    for(auto bot:bots){
+        // if bot reached destination, select new target
+        bot.updateCurrentPosition();
+        auto px = bot.x, py = bot.y, tx = bot.tx, ty = bot.ty;
+        if (hypot(px - tx, py - ty) < BOT_SIZE * 2 + 0.05 * BOT_SIZE) {
+            bot.tx = bot.next_x;
+            bot.tx = bot.next_y;
+            bot.resetTarget();
+        }
+    }
+
 
     return 0;
 
