@@ -9,6 +9,7 @@
 #define NUM 2
 #define DELTA 0.05
 #define SAFE_DISTANCE (BOT_SIZE * 1.5)
+#define RADIUS 300
 
 #define max(a, b) a>b?a:b
 #define min(a, b) a<b?a:b
@@ -64,11 +65,9 @@ class Bot{
     Point pose, tg, vel, next, dest;
     double wait_time;
     Bot(int id):id(id){
-        pose.x = 1 + (rand()%1000)/10.0;
-        pose.y = 1 + (rand()%1000)/10.0;
+        setPoint(pose);
         speed = rand()%1000/1000.0;
-        tg.x = 1 + (rand()%1000)/10.0;
-        tg.y = 1 + (rand()%1000)/10.0;
+        setPoint(tg);
         th =  atan2(pose.y - tg.y, pose.x - tg.x);
         wait_time = 0;
 
@@ -78,7 +77,7 @@ class Bot{
         std::cout<<"Created Bot "<<id<<std::endl;
 
         setSpeedComponents();  
-        setNext();     
+        setPoint(next);     
     }
     ~Bot(){
         std::cout<<"Destroyed Bot";
@@ -93,26 +92,30 @@ class Bot{
         vel.x = speed*cos(th);
         vel.y = speed*sin(th);
     }
-    void setNext(){
-        next.x = 1+ (rand()%1000)/10.0;
-        next.y = 1+ (rand()%1000)/10.0;
+    void setPoint(Point &a){
+        // Select a point on the perimeter of a circle with radius R
+        auto angle = (rand() % 1000) / 1000.0;
+        auto b = cos(angle), c = sin(angle); 
+        a.x = RADIUS - cos(angle) * RADIUS;
+        a.y = RADIUS - sin(angle) * RADIUS;
     }
     void setNextTarget(){
         tg.x = next.x;
         tg.y = next.y;
-        setNext();
+        setPoint(next);
     }
+    
     void updateCurrentPosition(){
         std::this_thread::sleep_for(std::chrono::milliseconds(5));
         pose.x += vel.x;
         pose.y += vel.y;
-        if (pose.x > 100){ pose.x = pose.x - 100; }
-        if (pose.x < -100){ pose.x = pose.x + 100; }
-        if (pose.y > 100){ pose.y = pose.y - 100; }
-        if (pose.y < -100){ pose.y = pose.y + 100; }
     }
+    
     void printPose(){ std::cout<<"\nBot ("<<id<<") at ("<<pose.x<<","<<pose.y<<") --> ("<<tg.x<<","<<tg.y<<")"; }
+    
+    // Update each bot about position of every other bot
     void getUpdate(std::vector<Bot> &bots){
+        
         for(auto &bot:bots){
             if (&bot == this){
                 continue;

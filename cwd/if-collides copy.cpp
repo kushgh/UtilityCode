@@ -1,0 +1,176 @@
+class Bot{
+    Bot(int id):id(id){
+        setPoint(pose);
+        speed = rand()%1000/1000.0;
+        setPoint(tg);
+        th =  atan2(pose.y - tg.y, pose.x - tg.x);
+        wait_time = 0;
+
+        dest.x = 1 + (rand()%1000)/10.0;
+        dest.y = 1 + (rand()%1000)/10.0;
+        
+        std::cout<<"Created Bot "<<id<<std::endl;
+
+        setSpeedComponents();  
+        setPoint(next);     
+    }
+    ~Bot(){
+        std::cout<<"Destroyed Bot";
+    }
+    void PAUSE_JOB(){ }
+    void RESUME_JOB(){ }
+    void INCREASE_WAIT_COUNT(){ }
+    void PAUSE_WAIT_COUNT(){ }
+    void RESET_WAIT_COUNT(){ }
+    
+    void setSpeedComponents(){
+        vel.x = speed*cos(th);
+        vel.y = speed*sin(th);
+    }
+    void setPoint(Point &a){
+        // Select a point on the perimeter of a circle with radius R
+        auto angle = (rand() % 1000) / 1000.0;
+        auto b = cos(angle), c = sin(angle); 
+        a.x = RADIUS - cos(angle) * RADIUS;
+        a.y = RADIUS - sin(angle) * RADIUS;
+    }
+    void setNextTarget(){
+        tg.x = next.x;
+        tg.y = next.y;
+        setPoint(next);
+    }
+    
+    void updateCurrentPosition(){
+        std::this_thread::sleep_for(std::chrono::milliseconds(5));
+        pose.x += vel.x;
+        pose.y += vel.y;
+    }
+    
+    void printPose(){ std::cout<<"\nBot ("<<id<<") at ("<<pose.x<<","<<pose.y<<") --> ("<<tg.x<<","<<tg.y<<")"; }
+    
+    // Update each bot about position of every other bot
+    void getUpdate(std::vector<Bot> &bots){
+        
+        for(auto &bot:bots){
+            if (&bot == this){
+                continue;
+            }
+            Point p={pose.x, pose.y}, t={tg.x, tg.y}, q={bot.pose.x, bot.pose.y}, f={bot.tg.x, bot.tg.y};
+            if (doIntersect(p, t, q, f)){
+                Point cp = {0, 0}; //  collsion point
+                if (collides(bot, cp)){
+                    // distance from target
+                    auto dtg1 = hypot(pose.x - tg.x, pose.y - tg.y);
+                    auto dtg2 = hypot(bot.pose.x - bot.tg.x, bot.pose.y - bot.tg.y);
+                    // distance from collison point
+                    auto dcp1 = hypot(pose.x - cp.x, pose.y - cp.y);
+                    auto dcp2 = hypot(bot.pose.x - cp.x, bot.pose.y - cp.y);
+                    
+                    if (dcp1 < SAFE_DISTANCE || dcp2 < SAFE_DISTANCE){
+                        if (wait_time == bot.wait_time){
+                            if(dtg1 > dtg2){
+                                PAUSE_JOB();
+                                INCREASE_WAIT_COUNT();
+                            }
+                        else if (wait_time < bot.wait_time){
+                            PAUSE_JOB();
+                            INCREASE_WAIT_COUNT();
+                        }
+                        }
+                    }
+                }
+            }
+            else{
+                RESUME_JOB();
+                PAUSE_WAIT_COUNT();
+
+            }
+        }
+    }
+    bool collides(Bot &b, Point &cp){
+        // bot 1
+        auto x1=pose.x, y1 = pose.y;                             // current position
+        auto tx=tg.x, ty=tg.y;
+        auto angle1 = th; // angle of bot against x axis
+        auto speed1 = speed;                                  // speed of bot
+
+        // bot 2
+        auto x2=b.pose.x, y2 = b.pose.y;                             // current position
+        auto fx=b.tg.x, fy=b.tg.y;
+        auto angle2 = b.th; // angle of bot against x axis
+        auto speed2 = b.speed;                                  // speed of bot
+
+        // speed of a 
+        auto xa = speed1*cos(angle1); // in x direction
+        auto ya = speed1*sin(angle1); // in y direction
+        // speed of b
+        auto xb = speed2*cos(angle2); // in x direction
+        auto yb = speed2*sin(angle2); // in y direction
+
+        // mintime to collision 
+        auto tm = ((xa - xb)*(x2 - x1) + (ya - yb)*(y2 - y1)) / ((xa - xb)*(xa - xb) + (ya - yb)*(ya - yb));
+        // mindist to collision
+        auto ds = hypot(tm*xa - tm*xb + x1 - x2, tm*ya - tm*yb + y1 - y2);
+
+        // possible collision on route Or not
+        auto collision = false;;
+
+        // collision condition
+        if (ds <= BOT_SIZE*2 + 0.05*BOT_SIZE){
+            collision = true;
+            
+            auto m1 = 0.0, m2 = 0.0;
+            if (abs(tx - x1)>DELTA){
+                m1 = (ty-x1)/(tx-x1);
+            }
+            if (abs(fx - x2)>DELTA){
+            m2 = (fy-y2)/(fx-x2);
+            }
+            cp.x = ( (m1*x1 - m2*fx) + (fy - y1) )/(m1-m2);
+            cp.y = ( (m1*m2*(x1 - fx)) + (m1*fy - m2*y1) )/(m1-m2);
+        }   
+
+        std::cout<<collision;
+        return collision;
+    }
+
+};
+
+
+int main(){
+
+    std::vector<Bot> bots;
+    // create bots
+    for(int i = 0; i<NUM; ++i) {
+        Bot temp(i+1);
+        bots.push_back(temp);
+    }
+    auto previous_time = std::chrono::steady_clock::now();
+    while (true){
+        // update bot locations
+        for(auto &bot:bots){        // very important to declare it as a reference and not a new variable
+            bot.getUpdate(bots);
+            bot.updateCurrentPosition();
+            auto current_time = std::chrono::steady_clock::now();
+            if (std::chrono::duration_cast<std::chrono::seconds>(current_time - previous_time).count() >= 1) { 
+                bot.printPose(); 
+                previous_time = std::chrono::steady_clock::now();
+            }
+           // if bot reached destination, select new tg
+            auto px = bot.pose.x, py = bot.pose.y, tx = bot.tg.x, ty = bot.tg.y, dx = bot.next.x, dy = bot.next.y;
+            if (hypot(px - tx, py - ty) < BOT_SIZE * 5 + 0.05 * BOT_SIZE) { // reached interim target
+                bot.tg.x = bot.next.x;
+                bot.tg.x = bot.next.y;
+                bot.setNextTarget();
+                if (abs(tx - dx)>DELTA && abs(ty-dy)<DELTA){ // interim target is destination
+                    bot.RESET_WAIT_COUNT();
+                    std::cout<<"("<<bot.id<<") Reached destination";
+                }
+            }
+        }
+    }
+
+
+    return 0;
+
+}
